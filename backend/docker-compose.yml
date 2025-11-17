@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:v23.1.12
+    command: start-single-node --insecure --http-addr 0.0.0.0:8080
+    hostname: cockroachdb
+    restart: unless-stopped
+    ports:
+      - "26257:26257"  # DB connection
+      - "8080:8080"    # DB web UI (optional)
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+
+  nakama:
+    image: heroiclabs/nakama:3.21.0
+    depends_on:
+      - cockroachdb
+    restart: unless-stopped
+    ports:
+      - "7350:7350"    # gRPC / WebSocket (used by JS client)
+      - "7351:7351"    # HTTP API & console
+    volumes:
+      - ./modules:/nakama/data/modules
+      - ./local.yml:/nakama/data/local.yml
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up
+        --database.address root@cockroachdb:26257 &&
+        /nakama/nakama
+        --name nakama1
+        --database.address root@cockroachdb:26257
+        --logger.level DEBUG
+        --config /nakama/data/local.yml
+
+volumes:
+  cockroach-data:

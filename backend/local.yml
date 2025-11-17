@@ -1,0 +1,18 @@
+logger:
+  level: "DEBUG"
+
+runtime:
+  path: "/nakama/data/modules"
+
+socket:
+  server_key: "tictactoe-server-key"
+
+console:
+  # enable Nakama console on http://localhost:7351
+  port: 7351
+
+session:
+  token_expiry_sec: 7200
+
+matchmaker:
+  max_tickets: 3
