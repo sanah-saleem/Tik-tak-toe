@@ -35,7 +35,7 @@ local function encode_match_state(state)
         })
     end
 
-    return nk.json_decode({
+    return nk.json_encode({
         board          = state.board,
         players        = players,
         nextTurnUserId = state.next_turn,
@@ -202,7 +202,7 @@ function M.match_leave(context, dispatcher, tick, state, presences)
         local uid = presence.user_id
         --if a player leaves mid game other player wins
         if not state.is_finished then
-            for _, uid in ipairs(state.player_order) do
+            for _, pid in ipairs(state.player_order) do
                 if pid == uid then
                     local other = other_player(state, uid)
                     state.winner = other
@@ -248,6 +248,31 @@ end
 function M.match_signal(context, dispatcher, tick, state, data)
     return state
 end
+
+
+-- =================RPC=====================
+
+local function rpc_create_tiktaktoe_match(context, payload)
+    nk.logger_info("rpc_create_tiktaktoe_match called")
+
+    -- Try to create an authoritative match from this module.
+    local ok, result = pcall(nk.match_create, "tiktaktoe", {})
+
+    if not ok then
+        -- 'result' now contains the error string.
+        nk.logger_error("Failed to create tiktaktoe match: " .. tostring(result))
+        -- Returning a non-JSON string or error will cause a 500.
+        -- So we encode a proper JSON error instead:
+        return nk.json_encode({ error = "Failed to create match: " .. tostring(result) })
+    end
+
+    local match_id = result
+    nk.logger_info("Created tiktaktoe match with id: " .. match_id)
+
+    return nk.json_encode({ matchId = match_id })
+end
+
+nk.register_rpc(rpc_create_tiktaktoe_match, "create_tiktaktoe_match")
 
 return M
     
