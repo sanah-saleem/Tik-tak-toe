@@ -5,6 +5,8 @@ local OPCODE_MOVE = 1       -- client -> server
 local OPCODE_STATE = 2      -- server -> clients (snapshot)
 local OPCODE_ERROR = 3      -- server -> single client
 
+local MODULE_NAME = "tiktaktoe"
+
 local WIN_LINES = {
   {1,2,3},{4,5,6},{7,8,9},
   {1,4,7},{2,5,8},{3,6,9},
@@ -256,7 +258,7 @@ local function rpc_create_tiktaktoe_match(context, payload)
     nk.logger_info("rpc_create_tiktaktoe_match called")
 
     -- Try to create an authoritative match from this module.
-    local ok, result = pcall(nk.match_create, "tiktaktoe", {})
+    local ok, result = pcall(nk.match_create, MODULE_NAME, {})
 
     if not ok then
         -- 'result' now contains the error string.
@@ -272,7 +274,19 @@ local function rpc_create_tiktaktoe_match(context, payload)
     return nk.json_encode({ matchId = match_id })
 end
 
+local function tiktaktoe_matchmaker_matched(context, matched_users)
+    nk.logger_info(string.format(
+        "Matchmaker matched %d users, creating %s match.",
+        #matched_users, MODULE_NAME
+    ))
+    -- create an authoritative match using this module
+    local match_id = nk.match_create(MODULE_NAME, {})
+    nk.logger_info("Created match from matchmaker with id: " .. match_id)
+    return match_id
+end
+
 nk.register_rpc(rpc_create_tiktaktoe_match, "create_tiktaktoe_match")
+nk.register_matchmaker_matched(tiktaktoe_matchmaker_matched)
 
 return M
     

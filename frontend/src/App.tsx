@@ -4,8 +4,10 @@ import { NicknameScreen } from "./components/NicknameScreen";
 import { MainMenu } from "./components/MainMenu";
 import { GameScreen } from "./components/GameScreen";
 import { useTictactoeMatch } from "./hooks/useTikTakToeMatch";
+import { useMatchmaking } from "./hooks/useMatchmaking";
+import { MatchmakingScreen } from "./components/MatchmakingScreen";
 
-type Screen = "nickname" | "menu" | "game";
+type Screen = "nickname" | "menu" | "searching" | "game";
 
 function App() {
   const { session, socket, isConnecting, error, connect } = useNakamaAuth();
@@ -18,14 +20,25 @@ function App() {
     isInMatch,
     isLoading: isMatchLoading,
     error: matchError,
-    createMatch,
+    createMatch,        // still available if you want private matches later
     joinMatchById,
     sendMove,
     resetError,
   } = useTictactoeMatch({
     socket,
     userId: session?.user_id ?? null,
-    session,
+    session
+  });
+
+  const {
+    isSearching,
+    error: matchmakingError,
+    startSearch,
+    cancelSearch,
+  } = useMatchmaking(socket, async (foundMatchId: string) => {
+    // Called when Nakama's matchmaker finds a match
+    await joinMatchById(foundMatchId);
+    setScreen("game");
   });
 
   useEffect(() => {
@@ -35,14 +48,14 @@ function App() {
     }
   }, [session, socket]);
 
-  // Simple combined error handling
-  const combinedError = error || matchError;
+  const combinedError = error || matchError || matchmakingError || null;
 
   const handleBackToMenu = () => {
     setScreen("menu");
   };
 
-  if (!session || !session.user_id || screen === "nickname") {
+  // Nickname / login
+  if (!session || screen === "nickname") {
     return (
       <NicknameScreen
         onSubmit={connect}
@@ -52,6 +65,29 @@ function App() {
     );
   }
 
+  // Searching screen
+  if (screen === "searching") {
+    return (
+      <>
+        {combinedError && (
+          <div
+            className="fixed top-2 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-3 py-1 rounded-full shadow z-50 cursor-pointer"
+            onClick={resetError}
+          >
+            {combinedError}
+          </div>
+        )}
+        <MatchmakingScreen
+          onCancel={async () => {
+            await cancelSearch();
+            setScreen("menu");
+          }}
+        />
+      </>
+    );
+  }
+
+  // Game screen
   if (screen === "game" && isInMatch) {
     return (
       <>
@@ -64,7 +100,7 @@ function App() {
           </div>
         )}
         <GameScreen
-          userId={session.user_id}
+          userId={session.user_id!}
           nickname={nickname}
           matchId={matchId}
           gameState={gameState}
@@ -75,7 +111,7 @@ function App() {
     );
   }
 
-  // Default: main menu
+  // Main menu
   return (
     <>
       {combinedError && (
@@ -88,16 +124,12 @@ function App() {
       )}
       <MainMenu
         nickname={nickname}
-        userId={session.user_id}
-        onCreateMatch={async () => {
-          await createMatch();
-          setScreen("game");
+        userId={session.user_id!}
+        isSearching={isSearching}
+        onPlayOnline={async () => {
+          await startSearch();
+          setScreen("searching");
         }}
-        onJoinMatch={async (id) => {
-          await joinMatchById(id);
-          setScreen("game");
-        }}
-        isLoading={isMatchLoading}
       />
     </>
   );
