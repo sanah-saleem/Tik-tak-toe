@@ -24,6 +24,7 @@ local function new_match_state()
         winner = nil,         -- user_id | nil
         is_draw = false,
         is_finished = false,
+        end_reason = "",      -- "WIN", "DRAW", "OPPONENT_LEFT", etc.
     }
 end
 
@@ -44,6 +45,7 @@ local function encode_match_state(state)
         winnerUserId   = state.winner,
         isDraw         = state.is_draw,
         isFinished     = state.is_finished,
+        endReason      = state.end_reason or "", 
     })
 end
 
@@ -126,6 +128,7 @@ local function handle_move(state, dispatcher, message)
         state.is_draw = true
         state.is_finished = true
         state.winner = nil
+        state.end_reason = "DRAW"
     elseif result == "X" or result == "O" then
         -- find the user with the mark
         for uid, m in pairs(state.marks) do
@@ -136,6 +139,7 @@ local function handle_move(state, dispatcher, message)
         end
         state.is_draw = false
         state.is_finished = true
+        state.end_reason = "WIN"
     else 
         -- switch turn
         state.next_turn = other_player(state, user_id)
@@ -210,6 +214,7 @@ function M.match_leave(context, dispatcher, tick, state, presences)
                     state.winner = other
                     state.is_finished = true
                     state.is_draw = false
+                    state.end_reason = "OPPONENT_LEFT"
                     break
                 end
             end

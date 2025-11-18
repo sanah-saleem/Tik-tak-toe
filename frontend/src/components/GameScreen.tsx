@@ -46,12 +46,17 @@ export function GameScreen({
         statusText = "Opponent's turn";
       }
     } else {
-      if (gameState.isDraw) {
+      const reason = gameState.endReason || "";
+      if (gameState.isDraw || reason === "DRAW") {
         statusText = "It's a draw!";
+      } else if (gameState.winnerUserId === userId && reason === "OPPONENT_LEFT") {
+        statusText = "Opponent left the game, You win! 🎉";
       } else if (gameState.winnerUserId === userId) {
-        statusText = "You win! 🎉";
-      } else {
+        statusText = "You win! 🎉"
+      } else if (gameState.winnerUserId && gameState.winnerUserId !== userId) {
         statusText = "You lost 😅";
+      } else {
+        statusText = "Game over.";
       }
     }
   }

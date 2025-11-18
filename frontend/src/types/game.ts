@@ -18,4 +18,5 @@ export interface GameState {
   winnerUserId: string | null;
   isDraw: boolean;
   isFinished: boolean;
+  endReason?: string; 
 }

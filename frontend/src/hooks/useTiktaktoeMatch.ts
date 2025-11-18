@@ -24,6 +24,7 @@ interface UseTictactoeMatchResult {
   joinMatchById: (id: string) => Promise<void>;
   sendMove: (index: number) => void;
   resetError: () => void;
+  leaveMatch: () => void;
 }
 
 const initialGameState: GameState = {
@@ -33,6 +34,7 @@ const initialGameState: GameState = {
   winnerUserId: null,
   isDraw: false,
   isFinished: false,
+  endReason: "",
 };
 
 type CreateMatchResponse = {
@@ -199,6 +201,18 @@ export function useTictactoeMatch(
 
   const resetError = () => setError(null);
 
+  const leaveMatch = async() => {
+    if (!socket || !matchId) return;
+    try {
+      await socket.leaveMatch(matchId);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMatchId(null);
+      setGameState(null)
+    }
+  }
+
   return {
     gameState,
     matchId,
@@ -209,5 +223,8 @@ export function useTictactoeMatch(
     joinMatchById,
     sendMove,
     resetError,
+    leaveMatch,
   };
 }
+
+

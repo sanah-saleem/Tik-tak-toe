@@ -24,6 +24,7 @@ function App() {
     joinMatchById,
     sendMove,
     resetError,
+    leaveMatch,
   } = useTictactoeMatch({
     socket,
     userId: session?.user_id ?? null,
@@ -105,7 +106,10 @@ function App() {
           matchId={matchId}
           gameState={gameState}
           onCellClick={sendMove}
-          onBackToMenu={handleBackToMenu}
+          onBackToMenu={ async () => {
+            await leaveMatch();
+            handleBackToMenu();
+          }}
         />
       </>
     );
