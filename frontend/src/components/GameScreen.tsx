@@ -1,4 +1,5 @@
 import type { GameState, PlayerInfo } from "../types/game";
+import { useEffect, useState } from "react";
 
 interface Props {
   userId: string;
@@ -27,6 +28,26 @@ export function GameScreen({
   onCellClick,
   onBackToMenu,
 }: Props) {
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!gameState || !gameState.turnExpiresAt || gameState.isFinished) {
+      setRemainingSeconds(null)
+      return
+    }
+    const update = () => {
+      const serverSec = gameState.turnExpiresAt!;
+      const nowSec = Date.now();
+      const diff = Math.max(0, Math.floor((serverSec - nowSec) / 1000));
+      setRemainingSeconds(diff);
+    };
+
+    update();
+
+    const id = setInterval(update, 500); // update twice per second
+    return () => clearInterval(id); 
+  }, [gameState?.turnExpiresAt, gameState?.isFinished]);
+
   const me = getPlayerForUser(gameState ?? null, userId);
   const opponent = getOpponent(gameState ?? null, userId);
 
@@ -51,6 +72,10 @@ export function GameScreen({
         statusText = "It's a draw!";
       } else if (gameState.winnerUserId === userId && reason === "OPPONENT_LEFT") {
         statusText = "Opponent left the game, You win! 🎉";
+      } else if (gameState.winnerUserId === userId && reason === "TIMEOUT") {
+        statusText = "Time's up for your opponent. You win! ⏰🎉";
+      } else if (gameState.winnerUserId !== userId && reason === "TIMEOUT") {
+        statusText = "You ran out of time. You lose. ⏰";
       } else if (gameState.winnerUserId === userId) {
         statusText = "You win! 🎉"
       } else if (gameState.winnerUserId && gameState.winnerUserId !== userId) {
@@ -69,6 +94,15 @@ export function GameScreen({
           <div>
             <p className="font-semibold text-slate-100 text-sm">{nickname}</p>
             <p>Your mark: <span className="font-bold text-teal-400">{myMark}</span></p>
+          </div>
+          <div className="text-center text-sm text-slate-200 space-y-1">
+            {!gameState?.isFinished && remainingSeconds !== null && (
+              <div className="text-xs text-slate-400">
+                <span className="font-semibold text-teal-400">
+                  {remainingSeconds}s
+                </span>
+              </div>
+            )}
           </div>
           <div className="text-right">
             <p className="font-semibold text-slate-100 text-sm">

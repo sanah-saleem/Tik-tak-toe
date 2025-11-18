@@ -25,6 +25,8 @@ local function new_match_state()
         is_draw = false,
         is_finished = false,
         end_reason = "",      -- "WIN", "DRAW", "OPPONENT_LEFT", etc.
+        turn_duration = 30,   -- seconds per move
+        turn_expires_at = nil,-- unix seconds when current turn expires
     }
 end
 
@@ -46,6 +48,7 @@ local function encode_match_state(state)
         isDraw         = state.is_draw,
         isFinished     = state.is_finished,
         endReason      = state.end_reason or "", 
+        turnExpiresAt= state.turn_expires_at,
     })
 end
 
@@ -54,6 +57,16 @@ local function other_player(state, user_id)
     if uid ~= user_id then return uid end
   end
   return nil
+end
+
+local function set_next_turn(state, user_id)
+    state.next_turn = user_id
+    if user_id ~= nil and state.turn_duration and state.turn_duration > 0 then
+        local now = nk.time()
+        state.turn_expires_at = now + (state.turn_duration*1000)
+    else
+        state.turn_expires_at = nil
+    end
 end
 
 local function check_winner(board)
@@ -129,6 +142,7 @@ local function handle_move(state, dispatcher, message)
         state.is_finished = true
         state.winner = nil
         state.end_reason = "DRAW"
+        state.turn_expires_at = nil
     elseif result == "X" or result == "O" then
         -- find the user with the mark
         for uid, m in pairs(state.marks) do
@@ -140,9 +154,11 @@ local function handle_move(state, dispatcher, message)
         state.is_draw = false
         state.is_finished = true
         state.end_reason = "WIN"
+        state.turn_expires_at = nil
     else 
         -- switch turn
-        state.next_turn = other_player(state, user_id)
+        local next_uid = other_player(state, user_id)
+        set_next_turn(state, next_uid)
     end
 
     local payload = encode_match_state(state)
@@ -193,7 +209,7 @@ function M.match_join(context, dispatcher, tick, state, presences)
 
         state.marks[p1] = "X"
         state.marks[p2] = "O"
-        state.next_turn = p1
+        set_next_turn(state, p1)
     end
 
     local payload = encode_match_state(state)
@@ -231,6 +247,26 @@ function M.match_loop(context, dispatcher, tick, state, messages)
     for _, message in ipairs(messages) do
         if message.op_code == OPCODE_MOVE then
             handle_move(state, dispatcher, message)
+        end
+    end
+
+    -- Timer check: if current player runs out of time, they lose.
+    if not state.is_finished and state.turn_expires_at ~= nil then
+        local now = nk.time()
+        if now >= state.turn_expires_at and state.next_turn ~= nil then
+            local loser = state.next_turn
+            local winner = other_player(state, loser)
+
+            if winner ~= nil then
+                state.winner = winner  
+                state.is_finished = true
+                state.is_draw = false
+                state.end_reason = "TIMEOUT"
+                state.turn_expires_at = nil
+
+                local payload = encode_match_state(state)
+                dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
+            end
         end
     end
 

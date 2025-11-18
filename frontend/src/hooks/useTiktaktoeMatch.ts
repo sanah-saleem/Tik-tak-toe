@@ -35,6 +35,7 @@ const initialGameState: GameState = {
   isDraw: false,
   isFinished: false,
   endReason: "",
+  turnExpiresAt: null,
 };
 
 type CreateMatchResponse = {

@@ -19,4 +19,5 @@ export interface GameState {
   isDraw: boolean;
   isFinished: boolean;
   endReason?: string; 
+  turnExpiresAt?: number | null;
 }
