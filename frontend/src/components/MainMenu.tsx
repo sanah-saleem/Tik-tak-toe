@@ -4,6 +4,7 @@ interface Props {
   onPlayClassic: () => void;
   onPlayTimed: () => void;
   isSearching: boolean;
+  onChangeUser: () => void;
 }
 
 export function MainMenu({
@@ -12,6 +13,7 @@ export function MainMenu({
   onPlayClassic,
   onPlayTimed,
   isSearching,
+  onChangeUser,
 }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
@@ -41,6 +43,14 @@ export function MainMenu({
             <span className="block text-xs text-teal-100">
               30 seconds per move
             </span>
+          </button>
+        </div>
+        <div className="pt-4 border-t border-slate-800 flex justify-end">
+          <button
+            onClick={onChangeUser}
+            className="text-[11px] text-slate-400 hover:text-slate-200"
+          >
+            Change user / Logout
           </button>
         </div>
       </div>

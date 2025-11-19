@@ -9,6 +9,7 @@ export interface UseNakamaAuthResult {
   error: string | null;
   connect: (nickname: string) => Promise<void>;
   autoConnecting: boolean;
+  logout: () => void;
 }
 
 function getOrCreateDeviceId(): string {
@@ -65,6 +66,20 @@ export function useNakamaAuth(): UseNakamaAuthResult {
     }
   };
 
+
+  const logout = () => {
+    if (socket) {
+      try {
+        socket.disconnect(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setSession(null);
+    setSocket(null);
+    setError(null);
+  };
+
   // auto connect on mount if we have a saved nickname
   useEffect(() => {
     const savedNickname = localStorage.getItem("ttt_nickname");
@@ -73,5 +88,5 @@ export function useNakamaAuth(): UseNakamaAuthResult {
     connect(savedNickname).finally(() => setAutoConnecting(false));
   })
 
-  return { session, socket, isConnecting, error, connect, autoConnecting };
+  return { session, socket, isConnecting, error, connect, autoConnecting, logout };
 }

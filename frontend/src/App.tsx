@@ -10,7 +10,7 @@ import { MatchmakingScreen } from "./components/MatchmakingScreen";
 type Screen = "nickname" | "menu" | "searching" | "game";
 
 function App() {
-  const { session, socket, isConnecting, error, connect, autoConnecting } = useNakamaAuth();
+  const { session, socket, isConnecting, error, connect, autoConnecting, logout } = useNakamaAuth();
   const isBusy = isConnecting || autoConnecting;
   const [screen, setScreen] = useState<Screen>("nickname");
   const [nickname, setNickname] = useState<string>("");
@@ -148,6 +148,18 @@ function App() {
         onPlayTimed={async() => {
           await startSearch("timed");
           setScreen("searching");
+        }}
+        onChangeUser={async () => {
+          // leave any ongoing match
+          await leaveMatch();
+          // clear local storage
+          localStorage.removeItem("ttt_device_id");
+          localStorage.removeItem("ttt_nickname");
+          localStorage.removeItem("ttt_last_match_id");
+          // reset auth state
+          logout();
+          // go back to nickname screen
+          setScreen("nickname");
         }}
       />
     </>
