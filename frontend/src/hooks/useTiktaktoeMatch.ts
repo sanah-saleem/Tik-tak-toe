@@ -5,6 +5,7 @@ import {
   OPCODE_MOVE,
   OPCODE_STATE,
   OPCODE_ERROR,
+  OPCODE_REMATCH,
 } from "../types/game";
 import { nakamaClient } from "../api/nakamaClient";
 
@@ -25,6 +26,7 @@ interface UseTictactoeMatchResult {
   sendMove: (index: number) => void;
   resetError: () => void;
   leaveMatch: () => void;
+  requestRematch: () => void;
 }
 
 const initialGameState: GameState = {
@@ -215,6 +217,12 @@ export function useTictactoeMatch(
     }
   }
 
+  const requestRematch = () => {
+    if (!socket || !matchId) return;
+    if (!gameState?.isFinished) return;
+    socket.sendMatchState(matchId, OPCODE_REMATCH, JSON.stringify({}));
+  }
+
   return {
     gameState,
     matchId,
@@ -226,6 +234,7 @@ export function useTictactoeMatch(
     sendMove,
     resetError,
     leaveMatch,
+    requestRematch,
   };
 }
 

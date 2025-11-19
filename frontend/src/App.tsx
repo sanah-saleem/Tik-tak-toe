@@ -10,7 +10,8 @@ import { MatchmakingScreen } from "./components/MatchmakingScreen";
 type Screen = "nickname" | "menu" | "searching" | "game";
 
 function App() {
-  const { session, socket, isConnecting, error, connect } = useNakamaAuth();
+  const { session, socket, isConnecting, error, connect, autoConnecting } = useNakamaAuth();
+  const isBusy = isConnecting || autoConnecting;
   const [screen, setScreen] = useState<Screen>("nickname");
   const [nickname, setNickname] = useState<string>("");
 
@@ -25,6 +26,7 @@ function App() {
     sendMove,
     resetError,
     leaveMatch,
+    requestRematch,
   } = useTictactoeMatch({
     socket,
     userId: session?.user_id ?? null,
@@ -56,12 +58,17 @@ function App() {
     setScreen("menu");
   };
 
+
+  if (!session && autoConnecting) {
+    return <div>Connecting ..... </div>
+  }
+
   // Nickname / login
-  if (!session || screen === "nickname") {
+  if (!session) {
     return (
       <NicknameScreen
         onSubmit={connect}
-        isConnecting={isConnecting}
+        isConnecting={isBusy}
         error={error}
       />
     );
@@ -92,6 +99,7 @@ function App() {
 
   // Game screen
   if (screen === "game" && isInMatch) {
+
     return (
       <>
         {combinedError && (
@@ -112,6 +120,7 @@ function App() {
             await leaveMatch();
             handleBackToMenu();
           }}
+          onPlayAgain={requestRematch}
         />
       </>
     );

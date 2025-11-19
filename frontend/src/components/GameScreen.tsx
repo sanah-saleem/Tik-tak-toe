@@ -8,6 +8,7 @@ interface Props {
   gameState: GameState | null;
   onCellClick: (index: number) => void;
   onBackToMenu: () => void;
+  onPlayAgain: () => void;
 }
 
 function getPlayerForUser(gameState: GameState | null, userId: string): PlayerInfo | undefined {
@@ -27,6 +28,7 @@ export function GameScreen({
   gameState,
   onCellClick,
   onBackToMenu,
+  onPlayAgain,
 }: Props) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
   const mode = gameState?.mode === "timed" ? "timed" : "classic";
@@ -168,6 +170,14 @@ export function GameScreen({
           >
             ← Back to menu
           </button>
+          {gameState?.isFinished && (
+            <button
+              onClick={onPlayAgain}
+              className="text-xs text-teal-400 hover:text-teal-200 font-medium"
+            >
+              Play again
+            </button>
+          )}
         </div>
       </div>
     </div>

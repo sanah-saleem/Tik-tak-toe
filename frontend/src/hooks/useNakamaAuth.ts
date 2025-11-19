@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { nakamaClient } from "../api/nakamaClient";
 import type { Session, Socket } from "@heroiclabs/nakama-js";
 
@@ -8,6 +8,7 @@ export interface UseNakamaAuthResult {
   isConnecting: boolean;
   error: string | null;
   connect: (nickname: string) => Promise<void>;
+  autoConnecting: boolean;
 }
 
 function getOrCreateDeviceId(): string {
@@ -24,6 +25,7 @@ export function useNakamaAuth(): UseNakamaAuthResult {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoConnecting, setAutoConnecting] = useState(false);
 
   const connect = async (nickname: string) => {
     try {
@@ -32,17 +34,26 @@ export function useNakamaAuth(): UseNakamaAuthResult {
 
       const deviceId = getOrCreateDeviceId();
 
-      // Create or restore a device-based user and attach nickname
+      // login or create account
       const session = await nakamaClient.authenticateDevice(
         deviceId,
         true,
-        nickname || undefined
       );
 
-      setSession(session);
+      //update nickname on this account everytime
+      await nakamaClient.updateAccount(session, {
+        username: nickname,
+        display_name: nickname,
+      });
+
+      const refreshed = await nakamaClient.sessionRefresh(session);
+
+      localStorage.setItem("ttt_nickname", nickname);
+
+      setSession(refreshed);
 
       const s = nakamaClient.createSocket(false, false);
-      await s.connect(session, true);
+      await s.connect(refreshed, true);
       setSocket(s);
     } catch (err: any) {
       console.error(err);
@@ -54,5 +65,13 @@ export function useNakamaAuth(): UseNakamaAuthResult {
     }
   };
 
-  return { session, socket, isConnecting, error, connect };
+  // auto connect on mount if we have a saved nickname
+  useEffect(() => {
+    const savedNickname = localStorage.getItem("ttt_nickname");
+    if ( !savedNickname || session || socket ) return;
+    setAutoConnecting(true)
+    connect(savedNickname).finally(() => setAutoConnecting(false));
+  })
+
+  return { session, socket, isConnecting, error, connect, autoConnecting };
 }

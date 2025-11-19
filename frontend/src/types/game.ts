@@ -2,6 +2,7 @@
 export const OPCODE_MOVE = 1;
 export const OPCODE_STATE = 2;
 export const OPCODE_ERROR = 3;
+export const OPCODE_REMATCH = 4;
 
 export interface PlayerInfo {
   userId: string;

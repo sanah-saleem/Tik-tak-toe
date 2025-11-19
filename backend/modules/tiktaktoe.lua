@@ -1,9 +1,10 @@
 local nk = require("nakama")
 
--- opcodes (used by both client ans server)
+-- opcodes (used by both client and server)
 local OPCODE_MOVE = 1       -- client -> server
 local OPCODE_STATE = 2      -- server -> clients (snapshot)
 local OPCODE_ERROR = 3      -- server -> single client
+local OPCODE_REMATCH = 4
 
 local MODULE_NAME = "tiktaktoe"
 
@@ -28,6 +29,7 @@ local function new_match_state()
         mode = "classic",
         turn_duration = 30,   -- seconds per move
         turn_expires_at = nil,-- unix seconds when current turn expires
+        rematch_votes = {},   -- user_id -> true
     }
 end
 
@@ -167,6 +169,65 @@ local function handle_move(state, dispatcher, message)
     dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
 end
 
+local function reset_for_rematch(state)
+    state.board = { "", "", "", "", "", "", "", "", "" }
+    state.is_draw = false
+    state.is_finished = false
+    state.end_reason = ""
+    state.winner = nil
+    state.rematch_votes = {}
+
+    local p1 = state.player_order[1]
+    local p2 = state.player_order[2]
+
+    local starter = nil
+    if p1 and state.marks[p1] == "X" then
+        starter = p2
+    elseif p2 and state.marks[p2] == "X" then
+        starter = p1
+    else
+        starter = p1 or p2
+    end
+
+    if starter then
+        set_next_turn(state, starter)
+    else
+        set_next_turn(state, nil)
+    end
+end
+
+local function handle_rematch_request(state, dispatcher, message)
+    if not state.is_finished then 
+        return 
+    end
+
+    local uid = message.sender.user_id
+    if not uid then return end
+
+    if not state.rematch_votes then
+        state.rematch_votes = {}
+    end
+
+    state.rematch_votes[uid] = true
+
+    -- count votes among active players
+    local votes = 0
+    local total = 0
+    for _, user_id in ipairs(state.player_order) do
+        total = total + 1
+        if state.rematch_votes[user_id] then
+            votes = votes + 1
+        end
+    end
+
+    if total >= 2 and votes >= 2 then
+        reset_for_rematch(state)
+    end
+
+    local payload = encode_match_state(state)
+    dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
+end
+
 local M = {}
 
 function M.match_init(context, params)
@@ -257,6 +318,8 @@ function M.match_loop(context, dispatcher, tick, state, messages)
     for _, message in ipairs(messages) do
         if message.op_code == OPCODE_MOVE then
             handle_move(state, dispatcher, message)
+        elseif message.op_code == OPCODE_REMATCH then
+            handle_rematch_request(state, dispatcher, message)
         end
     end
 
