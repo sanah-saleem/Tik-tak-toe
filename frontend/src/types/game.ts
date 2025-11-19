@@ -20,4 +20,5 @@ export interface GameState {
   isFinished: boolean;
   endReason?: string; 
   turnExpiresAt?: number | null;
+  mode?: "classic"  | "timed" | string;
 }

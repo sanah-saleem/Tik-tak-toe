@@ -36,6 +36,7 @@ function App() {
     error: matchmakingError,
     startSearch,
     cancelSearch,
+    currentMode,
   } = useMatchmaking(socket, async (foundMatchId: string) => {
     // Called when Nakama's matchmaker finds a match
     await joinMatchById(foundMatchId);
@@ -79,6 +80,7 @@ function App() {
           </div>
         )}
         <MatchmakingScreen
+          mode={currentMode!}
           onCancel={async () => {
             await cancelSearch();
             setScreen("menu");
@@ -130,8 +132,12 @@ function App() {
         nickname={nickname}
         userId={session.user_id!}
         isSearching={isSearching}
-        onPlayOnline={async () => {
-          await startSearch();
+        onPlayClassic={async () => {
+          await startSearch("classic");
+          setScreen("searching");
+        }}
+        onPlayTimed={async() => {
+          await startSearch("timed");
           setScreen("searching");
         }}
       />

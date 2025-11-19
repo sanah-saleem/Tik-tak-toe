@@ -29,6 +29,8 @@ export function GameScreen({
   onBackToMenu,
 }: Props) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
+  const mode = gameState?.mode === "timed" ? "timed" : "classic";
+  const isTimed = mode === "timed";
 
   useEffect(() => {
     if (!gameState || !gameState.turnExpiresAt || gameState.isFinished) {
@@ -90,13 +92,19 @@ export function GameScreen({
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
       <div className="w-full max-w-md bg-slate-900/80 rounded-2xl shadow-lg p-4 space-y-4">
         {/* Header */}
+        <div className="text-center text-[11px] text-slate-400">
+          Mode:{" "}
+          <span className="uppercase tracking-wide">
+            {isTimed ? "TIMED (30s / move)" : "CLASSIC"}
+          </span>
+        </div>
         <div className="flex items-center justify-between text-xs text-slate-400">
           <div>
             <p className="font-semibold text-slate-100 text-sm">{nickname}</p>
             <p>Your mark: <span className="font-bold text-teal-400">{myMark}</span></p>
           </div>
           <div className="text-center text-sm text-slate-200 space-y-1">
-            {!gameState?.isFinished && remainingSeconds !== null && (
+            {!gameState?.isFinished && isTimed && remainingSeconds !== null && (
               <div className="text-xs text-slate-400">
                 <span className="font-semibold text-teal-400">
                   {remainingSeconds}s

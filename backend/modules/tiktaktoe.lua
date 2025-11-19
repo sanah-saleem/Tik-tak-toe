@@ -25,6 +25,7 @@ local function new_match_state()
         is_draw = false,
         is_finished = false,
         end_reason = "",      -- "WIN", "DRAW", "OPPONENT_LEFT", etc.
+        mode = "classic",
         turn_duration = 30,   -- seconds per move
         turn_expires_at = nil,-- unix seconds when current turn expires
     }
@@ -48,7 +49,8 @@ local function encode_match_state(state)
         isDraw         = state.is_draw,
         isFinished     = state.is_finished,
         endReason      = state.end_reason or "", 
-        turnExpiresAt= state.turn_expires_at,
+        turnExpiresAt  = state.turn_expires_at,
+        mode           = state.mode or "classic",
     })
 end
 
@@ -169,8 +171,16 @@ local M = {}
 
 function M.match_init(context, params)
     local state = new_match_state()
+    local mode = params.mode or "classic"
+    state.mode = mode
+    if mode == "timed" then
+        state.turn_duration = 30
+    else
+        state.turn_duration = 0
+        state.turn_expires_at = nil
+    end
     local tick_rate = 1  -- 1 update per second is enough for Tic-Tac-Toe
-    local label = "tictactoe"
+    local label = "tictactoe:" .. mode
     return state, tick_rate, label
 end
 
@@ -296,7 +306,6 @@ end
 -- =================RPC=====================
 
 local function rpc_create_tiktaktoe_match(context, payload)
-    nk.logger_info("rpc_create_tiktaktoe_match called")
 
     -- Try to create an authoritative match from this module.
     local ok, result = pcall(nk.match_create, MODULE_NAME, {})
@@ -310,19 +319,25 @@ local function rpc_create_tiktaktoe_match(context, payload)
     end
 
     local match_id = result
-    nk.logger_info("Created tiktaktoe match with id: " .. match_id)
 
     return nk.json_encode({ matchId = match_id })
 end
 
 local function tiktaktoe_matchmaker_matched(context, matched_users)
+    local mode = "classic"
+    if #matched_users > 0 then
+        local candidate = matched_users[1]
+        local sp = candidate.properties
+        if sp.mode == "timed" or sp.mode == "classic" then
+            mode = sp.mode
+        end
+    end
     nk.logger_info(string.format(
-        "Matchmaker matched %d users, creating %s match.",
-        #matched_users, MODULE_NAME
+        "Matchmaker matched %d users, creating %s match with mode=%s.",
+        #matched_users, MODULE_NAME, mode
     ))
     -- create an authoritative match using this module
-    local match_id = nk.match_create(MODULE_NAME, {})
-    nk.logger_info("Created match from matchmaker with id: " .. match_id)
+    local match_id = nk.match_create(MODULE_NAME, { mode = mode })
     return match_id
 end
 

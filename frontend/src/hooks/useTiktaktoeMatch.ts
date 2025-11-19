@@ -36,6 +36,7 @@ const initialGameState: GameState = {
   isFinished: false,
   endReason: "",
   turnExpiresAt: null,
+  mode: "classic",
 };
 
 type CreateMatchResponse = {

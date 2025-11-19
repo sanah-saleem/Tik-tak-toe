@@ -1,15 +1,19 @@
 interface Props {
+  mode: "classic" | "timed";
   onCancel: () => void;
 }
 
-export function MatchmakingScreen({ onCancel }: Props) {
+export function MatchmakingScreen({ mode, onCancel }: Props) {
+  const subtitle =
+    mode === "timed"
+      ? "Timed mode • 30 seconds per move"
+      : "Classic mode • No time limit";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
       <div className="w-full max-w-sm bg-slate-900/80 rounded-2xl shadow-lg p-6 space-y-5 text-center">
         <h1 className="text-lg font-semibold">Finding a random player…</h1>
-        <p className="text-xs text-slate-400">
-          It usually takes around 20 seconds.
-        </p>
+        <p className="text-xs text-slate-400">{subtitle}</p>
 
         <div className="mt-4 flex justify-center">
           <div className="w-12 h-12 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />

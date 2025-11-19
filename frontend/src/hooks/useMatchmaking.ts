@@ -4,8 +4,9 @@ import type { Socket, MatchmakerTicket } from "@heroiclabs/nakama-js";
 interface UseMatchmakingResult {
   isSearching: boolean;
   error: string | null;
-  startSearch: () => Promise<void>;
+  startSearch: (mode: "classic" | "timed") => Promise<void>;
   cancelSearch: () => Promise<void>;
+  currentMode: "classic" | "timed" | null;
 }
 
 export function useMatchmaking(
@@ -15,8 +16,9 @@ export function useMatchmaking(
   const [ticket, setTicket] = useState<MatchmakerTicket | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentMode, setCurrentMode] = useState<"classic" | "timed" | null>(null);
 
-  const startSearch = async () => {
+  const startSearch = async (mode: "classic" | "timed") => {
     if (!socket) {
       setError("Not connected to server.");
       return;
@@ -24,8 +26,11 @@ export function useMatchmaking(
 
     try {
       setError(null);
-      // Simple query: match any opponent
-      const t = await socket.addMatchmaker("*", 2, 2);
+      setCurrentMode(mode)
+      // Filter by mode so players only match within the same mode
+      const query = "+properties.mode:" + mode;
+      const stringProps = { mode };
+      const t = await socket.addMatchmaker(query, 2, 2, stringProps);
       setTicket(t);
       setIsSearching(true);
 
@@ -50,6 +55,7 @@ export function useMatchmaking(
       setError(e?.message ?? "Failed to start matchmaking.");
       setIsSearching(false);
       setTicket(null);
+      setCurrentMode(null);
     }
   };
 
@@ -75,5 +81,6 @@ export function useMatchmaking(
     error,
     startSearch,
     cancelSearch,
+    currentMode,
   };
 }
