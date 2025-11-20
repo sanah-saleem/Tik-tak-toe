@@ -1,3 +1,5 @@
+import type { PlayerStats } from "../helpers/fetchStats";
+
 interface Props {
   nickname: string;
   userId: string;
@@ -5,6 +7,7 @@ interface Props {
   onPlayTimed: () => void;
   isSearching: boolean;
   onChangeUser: () => void;
+  stats: PlayerStats;
 }
 
 export function MainMenu({
@@ -14,6 +17,7 @@ export function MainMenu({
   onPlayTimed,
   isSearching,
   onChangeUser,
+  stats,
 }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
@@ -22,6 +26,21 @@ export function MainMenu({
           <p className="text-sm text-slate-400">Connected as</p>
           <p className="text-lg font-semibold">{nickname}</p>
           <p className="text-[10px] text-slate-500 break-all">ID: {userId}</p>
+        </div>
+
+        <div className="bg-slate-800/70 rounded-xl px-3 py-2 text-xs text-slate-300 flex justify-between">
+          <div className="text-center flex-1">
+            <div className="text-[10px] text-slate-400">WINS</div>
+            <div className="font-semibold text-teal-400">{stats.wins}</div>
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-[10px] text-slate-400">LOSSES</div>
+            <div className="font-semibold text-rose-400">{stats.losses}</div>
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-[10px] text-slate-400">DRAWS</div>
+            <div className="font-semibold text-sky-400">{stats.draws}</div>
+          </div>
         </div>
 
         <div className="space-y-3">

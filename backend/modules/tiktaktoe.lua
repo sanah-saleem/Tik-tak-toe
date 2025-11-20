@@ -12,6 +12,9 @@ local OPCODE_REMATCH = 4
 
 local MODULE_NAME = "tiktaktoe"
 
+local STATS_COLLECTION = "tiktaktoe"
+local STATS_KEY = "stats"
+
 local WIN_LINES = {
   {1,2,3},{4,5,6},{7,8,9},
   {1,4,7},{2,5,8},{3,6,9},
@@ -38,6 +41,7 @@ local function new_match_state()
         turn_duration = 30,   -- seconds per move
         turn_expires_at = nil,-- unix seconds when current turn expires
         rematch_votes = {},   -- user_id -> true
+        stats_updated = false,
     }
 end
 
@@ -130,6 +134,71 @@ local function reset_for_rematch(state)
     end
 end
 
+local function update_player_stats(user_id, result)
+    -- result: "win" | "loss" | "draw"
+    if not user_id then return end
+
+    local objects = nk.storage_read({
+        { collection = STATS_COLLECTION, key = STATS_KEY, user_id = user_id}
+    })
+
+    local stats = { wins = 0, losses = 0, draws = 0 }
+
+    if #objects > 0 then
+        local stored = objects[1]
+        local value = stored.value or {}
+        stats.wins   = value.wins   or 0
+        stats.losses = value.losses or 0
+        stats.draws  = value.draws  or 0
+    end
+
+    if result == "win" then
+        stats.wins = stats.wins + 1
+    elseif result == "loss" then
+        stats.losses = stats.losses + 1
+    elseif result == "draw" then
+        stats.draws = stats.draws + 1
+    end
+
+    nk.storage_write({
+        {
+            collection = STATS_COLLECTION,
+            key = STATS_KEY,
+            user_id = user_id,
+            value = stats,
+            permission_read = 1,  -- owner read (or 2 for public)
+            permission_write = 0, -- only server writes
+        }
+    })
+end
+
+local function update_stats_for_match(state)
+    if state.stats_updated or not state.is_finished then
+        return
+    end
+
+    local p1 = state.player_order[1]
+    local p2 = state.player_order[2]
+    if not p1 or not p2 then
+        -- if someone left before 2 players, don't track
+        state.stats_updated = true
+        return
+    end
+
+    if state.is_draw then
+        update_player_stats(p1, "draw")
+        update_player_stats(p2, "draw")
+    elseif state.winner then
+        update_player_stats(state.winner, "win")
+        local loser = other_player(state, state.winner)
+        if loser then
+            update_player_stats(loser, "loss")
+        end
+    end
+
+    state.stats_updated = true
+end
+
 ----------------------------------------------
 -- Message handlers 
 ----------------------------------------------
@@ -186,6 +255,7 @@ local function handle_move(state, dispatcher, message)
         state.winner = nil
         state.end_reason = "DRAW"
         state.turn_expires_at = nil
+        update_stats_for_match(state)
     elseif result == "X" or result == "O" then
         -- find the user with the mark
         for uid, m in pairs(state.marks) do
@@ -198,6 +268,7 @@ local function handle_move(state, dispatcher, message)
         state.is_finished = true
         state.end_reason = "WIN"
         state.turn_expires_at = nil
+        update_stats_for_match(state)
     else 
         -- switch turn
         local next_uid = other_player(state, user_id)
@@ -319,6 +390,7 @@ function M.match_leave(context, dispatcher, tick, state, presences)
                     state.is_draw = false
                     state.end_reason = "OPPONENT_LEFT"
                     state.turn_expires_at = nil
+                    update_stats_for_match(state)
                     break
                 end
             end
@@ -353,6 +425,7 @@ function M.match_loop(context, dispatcher, tick, state, messages)
                 state.is_draw = false
                 state.end_reason = "TIMEOUT"
                 state.turn_expires_at = nil
+                update_stats_for_match(state)
 
                 local payload = encode_match_state(state)
                 dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
@@ -423,7 +496,30 @@ local function tiktaktoe_matchmaker_matched(context, matched_users)
     return match_id
 end
 
+local function rpc_get_tiktaktoe_stats(context, payload)
+    local user_id = context.user_id
+    if not user_id then
+        return nk.json_encode({ error = "Unauthenticated" })
+    end
+
+    local objects = nk.storage_read({
+        { collection = STATS_COLLECTION, key = STATS_KEY, user_id = user_id }
+    })
+
+    local stats = { wins = 0, losses = 0, draws = 0 }
+
+    if #objects > 0 then
+        local value = objects[1].value or {}
+        stats.wins   = value.wins   or 0
+        stats.losses = value.losses or 0
+        stats.draws  = value.draws  or 0
+    end
+
+    return nk.json_encode(stats)
+end
+
 nk.register_rpc(rpc_create_tiktaktoe_match, "create_tiktaktoe_match")
+nk.register_rpc(rpc_get_tiktaktoe_stats, "get_tiktaktoe_stats")
 nk.register_matchmaker_matched(tiktaktoe_matchmaker_matched)
 
 return M

@@ -7,6 +7,7 @@ import { useTictactoeMatch } from "./hooks/useTiktaktoeMatch";
 import { useMatchmaking } from "./hooks/useMatchmaking";
 import { MatchmakingScreen } from "./components/MatchmakingScreen";
 import { nakamaClient } from "./api/nakamaClient";
+import { fetchPlayerStats, type PlayerStats } from "./helpers/fetchStats";
 
 type Screen = "nickname" | "menu" | "searching" | "game";
 
@@ -15,6 +16,7 @@ function App() {
   const isBusy = isConnecting || autoConnecting;
   const [screen, setScreen] = useState<Screen>("nickname");
   const [nickname, setNickname] = useState<string>("");
+  const [stats, setStats] = useState<PlayerStats>({ wins: 0, losses: 0, draws: 0, })
 
   const {
     gameState,
@@ -58,9 +60,31 @@ function App() {
           console.error("Failed to fetch account:", err)
           setNickname(session.username || "Player");
         }
+
+        try {
+          const s = await fetchPlayerStats(session);
+          setStats(s);
+        } catch (err) {
+          console.error("Failed to fetch stats:", err);
+        }
       })();
     }
   }, [session, socket]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (!gameState) return;
+    if (!gameState.isFinished) return;
+
+    (async () => {
+      try {
+        const s = await fetchPlayerStats(session);
+        setStats(s);
+      } catch (err) {
+        console.error("Failed to refresh stats:", err);
+      }
+    })();
+  }, [session, gameState?.isFinished]);
 
   const combinedError = error || matchError || matchmakingError || null;
 
@@ -172,6 +196,7 @@ function App() {
           // go back to nickname screen
           setScreen("nickname");
         }}
+        stats={stats}
       />
     </>
   );
