@@ -3,9 +3,10 @@ import { useNakamaAuth } from "./hooks/useNakamaAuth";
 import { NicknameScreen } from "./components/NicknameScreen";
 import { MainMenu } from "./components/MainMenu";
 import { GameScreen } from "./components/GameScreen";
-import { useTictactoeMatch } from "./hooks/useTikTakToeMatch";
+import { useTictactoeMatch } from "./hooks/useTiktaktoeMatch";
 import { useMatchmaking } from "./hooks/useMatchmaking";
 import { MatchmakingScreen } from "./components/MatchmakingScreen";
+import { nakamaClient } from "./api/nakamaClient";
 
 type Screen = "nickname" | "menu" | "searching" | "game";
 
@@ -48,7 +49,16 @@ function App() {
   useEffect(() => {
     if (session && socket) {
       setScreen("menu");
-      setNickname(session.username ?? "Player");
+      (async () => {
+        try {
+          const account = await nakamaClient.getAccount(session);
+          console.log(account)
+          setNickname(account.user?.display_name || account.user?.username || "Player");
+        } catch (err) {
+          console.error("Failed to fetch account:", err)
+          setNickname(session.username || "Player");
+        }
+      })();
     }
   }, [session, socket]);
 
@@ -115,6 +125,7 @@ function App() {
           nickname={nickname}
           matchId={matchId}
           gameState={gameState}
+          session={session}
           onCellClick={sendMove}
           onBackToMenu={ async () => {
             await leaveMatch();

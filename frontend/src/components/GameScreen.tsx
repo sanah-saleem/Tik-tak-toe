@@ -1,3 +1,5 @@
+import { Session } from "@heroiclabs/nakama-js";
+import { fetchDisplayName } from "../helpers/fetchDisplayName";
 import type { GameState, PlayerInfo } from "../types/game";
 import { useEffect, useState } from "react";
 
@@ -6,6 +8,7 @@ interface Props {
   nickname: string;
   matchId: string | null;
   gameState: GameState | null;
+  session: Session;
   onCellClick: (index: number) => void;
   onBackToMenu: () => void;
   onPlayAgain: () => void;
@@ -26,11 +29,13 @@ export function GameScreen({
   nickname,
   matchId,
   gameState,
+  session,
   onCellClick,
   onBackToMenu,
   onPlayAgain,
 }: Props) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
+  const [opponentName, setOpponentName] = useState<string | null>(null);
   const mode = gameState?.mode === "timed" ? "timed" : "classic";
   const isTimed = mode === "timed";
 
@@ -47,13 +52,34 @@ export function GameScreen({
     };
 
     update();
-
     const id = setInterval(update, 500); // update twice per second
     return () => clearInterval(id); 
   }, [gameState?.turnExpiresAt, gameState?.isFinished]);
 
   const me = getPlayerForUser(gameState ?? null, userId);
   const opponent = getOpponent(gameState ?? null, userId);
+
+  useEffect(() => {
+    if (!opponent || !session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const name = await fetchDisplayName(session, opponent.userId);
+        if (!cancelled) {
+          setOpponentName(name)
+        }
+      } catch (err) {
+        console.error("Failed to fetch opponent display name:", err);
+        if (!cancelled) {
+          // fallback to username from match state
+          setOpponentName(opponent.username);
+        }
+      }
+    }) ();
+    return () => {
+      cancelled = true;
+    };
+  }, [opponent?.userId, session]);
 
   const myMark = me?.mark ?? "?";
   const oppMark = opponent?.mark ?? "?";
@@ -116,7 +142,7 @@ export function GameScreen({
           </div>
           <div className="text-right">
             <p className="font-semibold text-slate-100 text-sm">
-              {opponent?.username ?? "Waiting…"}
+              {opponentName ?? opponent?.username ?? "Waiting…"}
             </p>
             <p>Opponent: <span className="font-bold text-pink-400">{oppMark}</span></p>
           </div>

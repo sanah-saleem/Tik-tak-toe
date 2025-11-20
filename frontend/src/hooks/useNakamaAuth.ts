@@ -43,7 +43,6 @@ export function useNakamaAuth(): UseNakamaAuthResult {
 
       //update nickname on this account everytime
       await nakamaClient.updateAccount(session, {
-        username: nickname,
         display_name: nickname,
       });
 
@@ -86,7 +85,7 @@ export function useNakamaAuth(): UseNakamaAuthResult {
     if ( !savedNickname || session || socket ) return;
     setAutoConnecting(true)
     connect(savedNickname).finally(() => setAutoConnecting(false));
-  })
+  }, [session, socket]);
 
   return { session, socket, isConnecting, error, connect, autoConnecting, logout };
 }

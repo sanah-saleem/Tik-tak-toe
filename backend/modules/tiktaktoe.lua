@@ -1,5 +1,9 @@
 local nk = require("nakama")
 
+-------------------------------------------
+-- Constants and configurations
+-------------------------------------------
+
 -- opcodes (used by both client and server)
 local OPCODE_MOVE = 1       -- client -> server
 local OPCODE_STATE = 2      -- server -> clients (snapshot)
@@ -13,6 +17,10 @@ local WIN_LINES = {
   {1,4,7},{2,5,8},{3,6,9},
   {1,5,9},{3,5,7},
 }
+
+-------------------------------------
+-- State construction and helpers
+-------------------------------------
 
 local function new_match_state()
     return {
@@ -95,6 +103,37 @@ local function check_winner(board)
     return nil
 end
 
+local function reset_for_rematch(state)
+    state.board = { "", "", "", "", "", "", "", "", "" }
+    state.is_draw = false
+    state.is_finished = false
+    state.end_reason = ""
+    state.winner = nil
+    state.rematch_votes = {}
+
+    local p1 = state.player_order[1]
+    local p2 = state.player_order[2]
+
+    local starter = nil
+    if p1 and state.marks[p1] == "X" then
+        starter = p2
+    elseif p2 and state.marks[p2] == "X" then
+        starter = p1
+    else
+        starter = p1 or p2
+    end
+
+    if starter then
+        set_next_turn(state, starter)
+    else
+        set_next_turn(state, nil)
+    end
+end
+
+----------------------------------------------
+-- Message handlers 
+----------------------------------------------
+
 local function handle_move(state, dispatcher, message)
     if state.is_finished then
         return 
@@ -169,33 +208,6 @@ local function handle_move(state, dispatcher, message)
     dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
 end
 
-local function reset_for_rematch(state)
-    state.board = { "", "", "", "", "", "", "", "", "" }
-    state.is_draw = false
-    state.is_finished = false
-    state.end_reason = ""
-    state.winner = nil
-    state.rematch_votes = {}
-
-    local p1 = state.player_order[1]
-    local p2 = state.player_order[2]
-
-    local starter = nil
-    if p1 and state.marks[p1] == "X" then
-        starter = p2
-    elseif p2 and state.marks[p2] == "X" then
-        starter = p1
-    else
-        starter = p1 or p2
-    end
-
-    if starter then
-        set_next_turn(state, starter)
-    else
-        set_next_turn(state, nil)
-    end
-end
-
 local function handle_rematch_request(state, dispatcher, message)
     if not state.is_finished then 
         return 
@@ -228,6 +240,10 @@ local function handle_rematch_request(state, dispatcher, message)
     dispatcher.broadcast_message(OPCODE_STATE, payload, nil, nil)
 end
 
+----------------------------------------------
+-- Match handler callbacks
+----------------------------------------------
+
 local M = {}
 
 function M.match_init(context, params)
@@ -241,7 +257,7 @@ function M.match_init(context, params)
         state.turn_expires_at = nil
     end
     local tick_rate = 1  -- 1 update per second is enough for Tic-Tac-Toe
-    local label = "tictactoe:" .. mode
+    local label = "tiktaktoe:" .. mode
     return state, tick_rate, label
 end
 
@@ -302,6 +318,7 @@ function M.match_leave(context, dispatcher, tick, state, presences)
                     state.is_finished = true
                     state.is_draw = false
                     state.end_reason = "OPPONENT_LEFT"
+                    state.turn_expires_at = nil
                     break
                 end
             end
@@ -366,7 +383,9 @@ function M.match_signal(context, dispatcher, tick, state, data)
 end
 
 
--- =================RPC=====================
+-------------------------------------
+-- RPC and match maker hooks
+-------------------------------------
 
 local function rpc_create_tiktaktoe_match(context, payload)
 
