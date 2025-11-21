@@ -15,6 +15,9 @@ local MODULE_NAME = "tiktaktoe"
 local STATS_COLLECTION = "tiktaktoe"
 local STATS_KEY = "stats"
 
+local LEADERBOARD_ID = "tiktaktoe_wins"
+local LEADERBOARD_INIT_DONE = false
+
 local WIN_LINES = {
   {1,2,3},{4,5,6},{7,8,9},
   {1,4,7},{2,5,8},{3,6,9},
@@ -114,6 +117,7 @@ local function reset_for_rematch(state)
     state.end_reason = ""
     state.winner = nil
     state.rematch_votes = {}
+    state.stats_updated = false
 
     local p1 = state.player_order[1]
     local p2 = state.player_order[2]
@@ -134,9 +138,27 @@ local function reset_for_rematch(state)
     end
 end
 
+local function ensure_leaderboard()
+    if LEADERBOARD_INIT_DONE then return end
+    local ok, err = pcall(nk.leaderboard_create,
+        LEADERBOARD_ID,
+        true,          -- authoritative
+        "desc",        -- higher score is better
+        "set",         -- we always set current wins
+        "",            -- no reset schedule
+        {}             -- metadata
+    )
+    if not ok then
+        nk.logger_error("Failed to create leaderboard: " .. tostring(err))
+    end
+    LEADERBOARD_INIT_DONE = true
+end
+
 local function update_player_stats(user_id, result)
     -- result: "win" | "loss" | "draw"
     if not user_id then return end
+
+    ensure_leaderboard()
 
     local objects = nk.storage_read({
         { collection = STATS_COLLECTION, key = STATS_KEY, user_id = user_id}
@@ -170,6 +192,25 @@ local function update_player_stats(user_id, result)
             permission_write = 0, -- only server writes
         }
     })
+
+    -- update leaderboard
+    local metadata = {
+        losses = stats.losses,
+        draws = stats.draws,
+    }
+
+    local ok, err = pcall(nk.leaderboard_record_write,
+        LEADERBOARD_ID,
+        user_id,
+        nil,             -- no override owner_id
+        stats.wins,      -- score
+        0,               -- subscore
+        metadata
+    )
+
+    if not ok then
+        nk.logger_error("Failed to write leaderboard record for " .. user_id .. ": " .. tostring(err))
+    end
 end
 
 local function update_stats_for_match(state)
@@ -318,6 +359,7 @@ end
 local M = {}
 
 function M.match_init(context, params)
+    ensure_leaderboard()
     local state = new_match_state()
     local mode = params.mode or "classic"
     state.mode = mode
@@ -487,10 +529,6 @@ local function tiktaktoe_matchmaker_matched(context, matched_users)
             mode = sp.mode
         end
     end
-    nk.logger_info(string.format(
-        "Matchmaker matched %d users, creating %s match with mode=%s.",
-        #matched_users, MODULE_NAME, mode
-    ))
     -- create an authoritative match using this module
     local match_id = nk.match_create(MODULE_NAME, { mode = mode })
     return match_id
@@ -518,8 +556,112 @@ local function rpc_get_tiktaktoe_stats(context, payload)
     return nk.json_encode(stats)
 end
 
+local function rpc_get_tiktaktoe_leaderboard(context, payload)
+    local user_id = context.user_id
+    if not user_id then
+        return nk.json_encode({ error = "Unauthenticated" })
+    end
+
+    ensure_leaderboard()
+
+    local limit = 10
+    if payload and #payload > 0 then
+        local ok, decoded = pcall(nk.json_decode, payload)
+        if ok and type(decoded) == "table" and decoded.limit then
+            limit = tonumber(decoded.limit) or limit
+        end
+    end
+
+    local records_result = nk.leaderboard_records_list(
+        LEADERBOARD_ID,
+        nil,
+        limit,
+        nil,
+        0
+    )
+
+    local owner_result = nk.leaderboard_records_list(
+        LEADERBOARD_ID,
+        { user_id },
+        1,
+        nil,
+        0
+    )
+
+    local top_records = (type(records_result) == "table" and records_result.records) or records_result or {}
+    local owner_records = (type(owner_result) == "table" and owner_result.owner_records) or owner_result or {}
+    
+    nk.logger_info("owner record ==> : " .. nk.json_encode(owner_result))
+
+    local user_ids, seen = {}, {}
+    local function add_id(id)
+        if id and id ~= "" and not seen[id] then
+            seen[id] = true
+            table.insert(user_ids, id)
+        end
+    end
+
+    for _, rec in ipairs(top_records) do add_id(rec.owner_id) end
+    for _, rec in ipairs(owner_records) do add_id(rec.owner_id) end
+
+    -- Fetch users via accounts_get_id (Lua-safe)
+    local users_by_id = {}
+    if #user_ids > 0 then
+        local ok, accounts = pcall(nk.accounts_get_id, user_ids)
+        if ok and accounts then
+            for _, acc in ipairs(accounts) do
+                local u = acc and acc.user
+                local uid = u and (u.user_id or u.id) -- support either key
+                if uid then
+                    users_by_id[uid] = u
+                else
+                    nk.logger_warn("account missing user_id: " .. nk.json_encode(acc))
+                end
+            end
+        else
+            nk.logger_error("accounts_get_id failed: " .. tostring(accounts))
+        end
+    end
+
+    local function map_record(rec)
+        local u = users_by_id[rec.owner_id] or {}
+        local display_name = u.display_name or u.username or rec.owner_id
+        local meta = rec.metadata or {}
+        return {
+            userId      = rec.owner_id,
+            displayName = display_name,
+            wins        = rec.score or 0,
+            losses      = meta.losses or 0,
+            draws       = meta.draws or 0,
+            rank        = rec.rank or 0,
+        }
+    end
+
+    local entries = {}
+    for _, rec in ipairs(top_records) do
+        table.insert(entries, map_record(rec))
+    end
+
+    local me = nil
+    if #owner_records > 0 then
+        me = map_record(owner_records[1])
+    else
+        for _, rec in ipairs(top_records) do
+            if rec.owner_id == user_id then
+                me = map_record(rec)
+                break
+            end
+        end
+    end
+
+    return nk.json_encode({ entries = entries, me = me })
+end
+
+
+
 nk.register_rpc(rpc_create_tiktaktoe_match, "create_tiktaktoe_match")
 nk.register_rpc(rpc_get_tiktaktoe_stats, "get_tiktaktoe_stats")
+nk.register_rpc(rpc_get_tiktaktoe_leaderboard, "get_tiktaktoe_leaderboard")
 nk.register_matchmaker_matched(tiktaktoe_matchmaker_matched)
 
 return M

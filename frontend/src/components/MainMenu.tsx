@@ -8,6 +8,8 @@ interface Props {
   isSearching: boolean;
   onChangeUser: () => void;
   stats: PlayerStats;
+  onShowLeaderboard: () => void;
+  isLoadingLeaderboard: boolean;
 }
 
 export function MainMenu({
@@ -18,6 +20,8 @@ export function MainMenu({
   isSearching,
   onChangeUser,
   stats,
+  onShowLeaderboard,
+  isLoadingLeaderboard,
 }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
@@ -62,6 +66,13 @@ export function MainMenu({
             <span className="block text-xs text-teal-100">
               30 seconds per move
             </span>
+          </button>
+          <button
+            onClick={onShowLeaderboard}
+            disabled={isLoadingLeaderboard}
+            className="w-full rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-60 py-2 text-sm transition"
+          >
+            {isLoadingLeaderboard ? "Loading leaderboard..." : "View Leaderboard"}
           </button>
         </div>
         <div className="pt-4 border-t border-slate-800 flex justify-end">

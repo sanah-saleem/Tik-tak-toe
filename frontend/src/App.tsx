@@ -8,8 +8,10 @@ import { useMatchmaking } from "./hooks/useMatchmaking";
 import { MatchmakingScreen } from "./components/MatchmakingScreen";
 import { nakamaClient } from "./api/nakamaClient";
 import { fetchPlayerStats, type PlayerStats } from "./helpers/fetchStats";
+import { fetchLeaderboard, type LeaderboardResult } from "./helpers/fetchLeaderboard";
+import { LeaderboardScreen } from "./components/LeaderboardScreen";
 
-type Screen = "nickname" | "menu" | "searching" | "game";
+type Screen = "nickname" | "menu" | "searching" | "game" | "leaderboard";
 
 function App() {
   const { session, socket, isConnecting, error, connect, autoConnecting, logout } = useNakamaAuth();
@@ -17,6 +19,8 @@ function App() {
   const [screen, setScreen] = useState<Screen>("nickname");
   const [nickname, setNickname] = useState<string>("");
   const [stats, setStats] = useState<PlayerStats>({ wins: 0, losses: 0, draws: 0, })
+  const [leaderboard, setLeaderboard] = useState<LeaderboardResult | null>(null);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
 
   const {
     gameState,
@@ -47,6 +51,20 @@ function App() {
     await joinMatchById(foundMatchId);
     setScreen("game");
   });
+
+  const openLeaderboard = async () => {
+    if (!session) return;
+    try {
+      setIsLoadingLeaderboard(true);
+      const lb = await fetchLeaderboard(session, 10);
+      setLeaderboard(lb);
+      setScreen("leaderboard");
+    } catch (err) {
+      console.error("Failed to fetch leaderboard:", err);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  };
 
   useEffect(() => {
     if (session && socket) {
@@ -160,7 +178,15 @@ function App() {
       </>
     );
   }
-
+  if (screen === "leaderboard" && leaderboard) {
+    return (
+      <LeaderboardScreen
+        entries={leaderboard.entries}
+        me={leaderboard.me}
+        onClose={() => setScreen("menu")}
+      />
+    );
+  }
   // Main menu
   return (
     <>
@@ -188,7 +214,6 @@ function App() {
           // leave any ongoing match
           await leaveMatch();
           // clear local storage
-          localStorage.removeItem("ttt_device_id");
           localStorage.removeItem("ttt_nickname");
           localStorage.removeItem("ttt_last_match_id");
           // reset auth state
@@ -197,6 +222,8 @@ function App() {
           setScreen("nickname");
         }}
         stats={stats}
+        onShowLeaderboard={openLeaderboard}
+        isLoadingLeaderboard={isLoadingLeaderboard}
       />
     </>
   );
