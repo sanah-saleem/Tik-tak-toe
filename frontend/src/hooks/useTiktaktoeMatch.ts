@@ -78,7 +78,7 @@ export function useTictactoeMatch(
     console.log("[useTictactoeMatch] attaching onmatchdata to", socket);
 
     const handler = (ev: any) => {
-      const { match_id, op_code, data, presence } = ev;
+      const { match_id, op_code, data} = ev;
 
       const decodeDataToJson = (): string => {
         if (!data) return "";

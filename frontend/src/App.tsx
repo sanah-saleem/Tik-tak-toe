@@ -26,9 +26,9 @@ function App() {
     gameState,
     matchId,
     isInMatch,
-    isLoading: isMatchLoading,
+    // isLoading: isMatchLoading,
     error: matchError,
-    createMatch,        // still available if you want private matches later
+    // createMatch,        // still available if you want private matches later
     joinMatchById,
     sendMove,
     resetError,
