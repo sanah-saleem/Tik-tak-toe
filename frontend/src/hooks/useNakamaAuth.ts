@@ -52,7 +52,7 @@ export function useNakamaAuth(): UseNakamaAuthResult {
 
       setSession(refreshed);
 
-      const s = nakamaClient.createSocket(false, false);
+      const s = nakamaClient.createSocket(nakamaClient.useSSL, false);
       await s.connect(refreshed, true);
       setSocket(s);
     } catch (err: any) {
